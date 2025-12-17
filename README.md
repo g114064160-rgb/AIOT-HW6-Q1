@@ -15,6 +15,13 @@ python ingest_f_a0010_001.py --input F-A0010-001.json --db data.db
 - `--input`：F-A0010-001 解析檔路徑（必填，JSON 或 XML）。
 - `--db`：輸出 SQLite 檔名，預設 `data.db`。
 
+### 安裝依賴
+```bash
+python -m venv .venv
+.venv\\Scripts\\activate  # Windows
+pip install -r requirements.txt
+```
+
 ## 資料表設計
 - `locations(id, name)`：地區名稱唯一。
 - `temperatures(id, location_id, data_time, temperature, unit, source_element)`：
@@ -33,3 +40,7 @@ sqlite3 data.db "SELECT l.name, t.data_time, t.temperature, t.unit FROM temperat
 - 檢查輸入檔案是否為正確的 F-A0010-001 JSON/XML。
 - 確認溫度欄位名稱為 `T`、`TEMP` 開頭（例：`T`、`TEMP`、`T0` 等）。
 - 如使用 XML，確保有 `<weatherElement>`、`<time>` 或 `<elementValue>` 標籤。
+
+## Streamlit App
+- 啟動：`streamlit run app.py`
+- 輸入資料庫路徑（預設 `data.db`），可在側邊欄選擇地區、調整顯示筆數，並查看統計數字與表格。
