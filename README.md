@@ -44,3 +44,4 @@ sqlite3 data.db "SELECT l.name, t.data_time, t.temperature, t.unit FROM temperat
 ## Streamlit App
 - 啟動：`streamlit run app.py`
 - 輸入資料庫路徑（預設 `data.db`），可在側邊欄選擇地區、調整顯示筆數，並查看統計數字與表格。
+- 若找不到 DB，可按頁面提示「建立空白資料庫（無資料）」；仍需執行匯入腳本填入資料。

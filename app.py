@@ -4,6 +4,12 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+try:
+    # Reuse schema helper from ingestion script if available.
+    from ingest_f_a0010_001 import ensure_schema
+except Exception:  # pragma: no cover - defensive import
+    ensure_schema = None
+
 
 DB_PATH_DEFAULT = Path("data.db")
 
@@ -30,7 +36,8 @@ def load_data(conn: sqlite3.Connection, region: str | None, limit: int | None) -
         clauses.append("l.name = ?")
         params.append(region)
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-    order = "ORDER BY t.data_time DESC NULLS LAST"
+    # SQLite 不支援 NULLS LAST；以布林排序保證空值在最後。
+    order = "ORDER BY t.data_time IS NULL, t.data_time DESC"
     limit_clause = f"LIMIT {limit}" if limit else ""
     query = f"{base_query} {where} {order} {limit_clause}"
     return pd.read_sql_query(query, conn, params=params)
@@ -47,13 +54,36 @@ def load_counts(conn: sqlite3.Connection) -> tuple[int, int]:
     return loc_count, temp_count
 
 
+def ensure_db_exists(db_path: Path) -> None:
+    if db_path.exists():
+        return
+    if ensure_schema is None:
+        raise RuntimeError("缺少 ensure_schema，無法建立空白資料庫。")
+    conn = sqlite3.connect(db_path)
+    try:
+        ensure_schema(conn)
+    finally:
+        conn.close()
+
+
 def main() -> None:
     st.title("F-A0010-001 溫度資料瀏覽")
     db_path_str = st.text_input("SQLite 檔案路徑", value=str(DB_PATH_DEFAULT))
     db_path = Path(db_path_str)
 
     if not db_path.exists():
-        st.warning(f"找不到資料庫：{db_path}. 請先執行 ingest_f_a0010_001.py 匯入資料。")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.warning(f"找不到資料庫：{db_path}")
+            create = st.button("建立空白資料庫（無資料）")
+        with col2:
+            st.info("請先執行 ingest_f_a0010_001.py 匯入來源資料。")
+        if create:
+            try:
+                ensure_db_exists(db_path)
+                st.success(f"已建立空白資料庫：{db_path}")
+            except Exception as exc:
+                st.error(f"建立資料庫失敗：{exc}")
         return
 
     conn = get_conn(db_path)
