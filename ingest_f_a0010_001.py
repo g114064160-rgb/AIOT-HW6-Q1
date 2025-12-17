@@ -75,7 +75,16 @@ def extract_temperatures_from_json(payload: Any) -> List[TemperatureRow]:
     rows: List[TemperatureRow] = []
     for loc in locations:
         loc_name = loc.get("locationName")
-        weather_elements = loc.get("weatherElement") or []
+        weather_elements = (
+            loc.get("weatherElement") or loc.get("weatherElements") or []
+        )
+
+        if isinstance(weather_elements, dict):
+            rows.extend(
+                extract_from_weather_elements_dict(loc_name, weather_elements)
+            )
+            continue
+
         for element in weather_elements:
             element_name = str(element.get("elementName", "")).upper()
             if not element_name.startswith(TEMP_ELEMENT_PREFIXES):
@@ -217,6 +226,36 @@ def extract_value_and_unit(node: Any) -> Tuple[Optional[float], Optional[str]]:
                     break
 
     return try_float(val), unit
+
+
+def extract_from_weather_elements_dict(
+    location_name: str, weather_elements: dict
+) -> List[TemperatureRow]:
+    """
+    支援 F-A0010-001 部分版本：location.weatherElements.MaxT/MinT/... -> daily[] -> temperature。
+    """
+    rows: List[TemperatureRow] = []
+    for element_name, element_body in weather_elements.items():
+        daily = element_body.get("daily") if isinstance(element_body, dict) else None
+        if not daily or not isinstance(daily, list):
+            continue
+        for entry in daily:
+            if not isinstance(entry, dict):
+                continue
+            timestamp = entry.get("dataDate") or entry.get("dataTime")
+            val = try_float(entry.get("temperature"))
+            if val is None:
+                continue
+            rows.append(
+                TemperatureRow(
+                    location=location_name,
+                    data_time=timestamp,
+                    value=val,
+                    unit=element_body.get("units") if isinstance(element_body, dict) else None,
+                    source_element=str(element_name),
+                )
+            )
+    return rows
 
 
 def ensure_schema(conn: sqlite3.Connection) -> None:
